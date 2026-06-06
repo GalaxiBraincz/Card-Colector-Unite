@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>Card Collector Unite</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="login-screen" class="login-screen">
+    <div class="login-box">
+      <h1>Card Collector Unite</h1>
+      <p class="login-sub">Přihlas se a sbírej karty, dueluj s boty i přáteli online!</p>
+      <p id="offline-notice" class="offline-notice hidden">📴 Offline režim — nastav Firebase v firebase-config.js pro online hru</p>
+      <div class="login-tabs">
+        <button class="login-tab active" data-tab="login">Přihlásit</button>
+        <button class="login-tab" data-tab="register">Registrace</button>
+      </div>
+      <form id="form-login" class="auth-form">
+        <input type="text" id="login-user" placeholder="Uživatelské jméno" autocomplete="username" required>
+        <input type="password" id="login-pass" placeholder="Heslo" autocomplete="current-password" required>
+        <button type="submit" id="btn-auth-submit" class="btn-primary">Vstoupit do hry</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <header class="app-header">
+      <div class="user-info">
+        <span id="player-name" class="player-name">🎮 Hráč</span>
+        <span id="cps-display" class="cps-display">+0/s</span>
+      </div>
+      <div class="currency-info">
+        <span id="coins-display" class="coins-count">0</span> 🪙
+      </div>
+      <button id="btn-logout" class="btn-logout">🏃 Odhlásit</button>
+    </header>
+
+    <main class="app-content">
+      <section id="view-clicker" class="view-section">
+        <div class="clicker-area">
+          <button id="click-btn" class="click-btn">💎</button>
+          <p class="hint-text">Klikej na krystal nebo nech pracovat psy!</p>
+        </div>
+      </section>
+
+      <section id="view-shop" class="view-section hidden">
+        <div class="shop-pack-buy">
+          <h2>Koupit balíčky karet</h2>
+          <div class="pack-controls">
+            <select id="pack-amount" class="pack-select">
+              <option value="1">1x Balíček (50 🪙)</option>
+              <option value="3">3x Balíček (150 🪙)</option>
+              <option value="5">5x Balíček (250 🪙)</option>
+            </select>
+            <button id="btn-buy-pack" class="btn-primary">Koupit 📦</button>
+          </div>
+        </div>
+        <div id="shop-items-grid" class="shop-grid"></div>
+      </section>
+
+      <section id="view-collection" class="view-section hidden">
+        <div class="collection-header">
+          <h2>Tvoje sbírka karet</h2>
+          <span id="album-count" class="album-count">0 / 0</span>
+        </div>
+        <div id="collection-grid" class="collection-grid"></div>
+      </section>
+    </main>
+
+    <nav class="app-nav">
+      <button class="nav-btn active" data-view="clicker">⛏️ <span>Těžit</span></button>
+      <button class="nav-btn" data-view="shop">🛒 <span>Obchod</span></button>
+      <button class="nav-btn" data-view="collection">🎴 <span>Sbírka</span></button>
+    </nav>
+  </div>
+
+  <div id="reveal-overlay" class="overlay hidden">
+    <div class="overlay-content">
+      <div class="card-container">
+        <div class="card-inner" id="card-inner">
+          <div class="card-face card-back">📦</div>
+          <div class="card-face card-front" id="card-front">
+            <span id="reveal-emoji" class="reveal-emoji"></span>
+            <h3 id="reveal-name" class="reveal-name"></h3>
+            <span id="reveal-rarity" class="reveal-rarity"></span>
+            <p id="reveal-stats" class="reveal-stats"></p>
+          </div>
+        </div>
+      </div>
+      <button id="btn-close-overlay" class="btn-secondary hidden">Pokračovat</button>
+    </div>
+  </div>
+
+  <div id="multi-overlay" class="overlay hidden">
+    <div class="overlay-content overlay-content--wide">
+      <p id="multi-overlay-title" class="overlay-title">Balíček otevřen!</p>
+      <p class="multi-hint">Klepni na karty pro otočení</p>
+      <div id="multi-cards-grid" class="multi-cards-grid"></div>
+      <div class="multi-actions">
+        <button id="btn-flip-all" class="btn-secondary">Otočit vše</button>
+        <button id="btn-done-multi" class="btn-primary">Hotovo</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <script src="firebase-config.js"></script>
+  <script src="data.js"></script>
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+
+  <script>
+    // Jednoduché přepínání záložek na přihlašovací obrazovce
+    document.querySelectorAll('.login-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const mode = tab.dataset.tab;
+        const btn = document.getElementById('btn-auth-submit');
+        if (mode === 'register') {
+          btn.textContent = 'Vytvořit účet';
+          document.getElementById('form-login').onsubmit = async (e) => {
+            e.preventDefault();
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+            try {
+              currentUser = await DB.register(u, p);
+              await enterApp();
+            } catch(err) { alert(err.message); }
+          };
+        } else {
+          btn.textContent = 'Vstoupit do hry';
+          document.getElementById('form-login').onsubmit = async (e) => {
+            e.preventDefault();
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+            try {
+              currentUser = await DB.login(u, p);
+              await enterApp();
+            } catch(err) { alert(err.message); }
+          };
+        }
+      });
+    });
+  </script>
+</body>
+</html>
